@@ -133,3 +133,67 @@ Q6 top customer per city: Bengaluru C0082 (INR 12,856.20), Chennai C0930 (INR 10
 
 **What relationships exist?** All correlations are weak. The largest in absolute value is `order_amount` with `discount_pct` at about −0.095, just ahead of `order_amount` with `quantity` at +0.087. A correlation of this size does not establish causation, and it is too small to say that discounts drive order value at all.
 
+## Part B — Customer segments and lapse prediction
+
+Run after Part A:
+
+python Part-B/rfm_segments.py    # RFM, K-means, PCA -> outputs/customer_segments.csv
+python Part-B/lapse_model.py     # lapse model       -> outputs/lapse_model.joblib, outputs/retention_list.csv
+
+### Segments
+
+- **RFM table:** built from completed orders only, as of 2025-10-01 00:00:00. Recency is `(snapshot − last_order_ts).dt.days`, frequency is the number of distinct completed orders, monetary is the sum of completed `order_amount`.
+- **K-means:** the three columns are standardised with `StandardScaler`, then `KMeans(n_clusters=K, n_init=10, random_state=42)` is fitted for K = 2 to 8.
+
+| K | Inertia | Silhouette |
+|---|---|---|
+| 2 | `<fill>` | `<fill>` |
+| 3 | `<fill>` | `<fill>` |
+| 4 | `<fill>` | `<fill>` |
+| 5 | `<fill>` | `<fill>` |
+| 6 | `<fill>` | `<fill>` |
+| 7 | `<fill>` | `<fill>` |
+| 8 | `<fill>` | `<fill>` |
+
+**Choice of K = 4.** The inertia falls steeply up to K = 4 and flattens after it (the elbow), K = 4 has the highest silhouette score, and four segments are a number a retention team can run separate campaigns for.
+
+**Why K = 8 cannot be chosen by inertia.** Every extra cluster lets the points sit closer to a centre, so inertia always falls as K grows, and K = 8 will always beat K = 2 even when the extra clusters are meaningless. That is why the elbow, the silhouette score and business use have to decide, not the lowest inertia.
+
+**Profile.** Cluster numbers are only labels and have no order. Names are given from each segment's averages.
+
+| Segment | Size | Mean recency | Mean frequency | Mean monetary | Action |
+|---|---|---|---|---|---|
+| Premium Big Spenders | `<fill>` | `<fill>` | `<fill>` | `<fill>` | Personal offers and early access; protect with a loyalty tier |
+| Loyal Regulars | `<fill>` | `<fill>` | `<fill>` | `<fill>` | Reward with points and cross-sell other categories |
+| Slipping Away | `<fill>` | `<fill>` | `<fill>` | `<fill>` | Win-back coupon before they are gone |
+| Occasional Shoppers | `<fill>` | `<fill>` | `<fill>` | `<fill>` | Free-delivery threshold to push a second order |
+
+Premium is the segment with the highest mean monetary value. PCA on the scaled RFM matrix explains `<fill>` and `<fill>` of the variance (total `<fill>`).
+
+### Lapse model
+
+- **Cohort and label:** customers with at least one completed order before 2025-09-01. `lapsed = 1` when there is no completed order from 2025-09-01 to 2025-09-30. Split 80/20 with `stratify=y`, `random_state=42`.
+- **Features** (orders before the cutoff only): recency, frequency, monetary, average discount, cancellation rate, average delivery minutes, favourite category, city, age, gender, tenure in days.
+- **Preprocessing:** `StandardScaler` for numeric columns and `OneHotEncoder(drop="first")` for city, gender and favourite category, both inside a scikit-learn `Pipeline`. No encoder, scaler or resampler saw test rows. The scaler's mean frequency (`<fill>`) differs from the full-cohort mean (`<fill>`) because it was learned from the training rows only.
+- **No leakage:** no data from 2025-09-01 onwards entered the features, and the segment labels from the K-means step were not used as features.
+
+| Model | Best parameters | CV F1 | Test precision | Test recall | Test F1 |
+|---|---|---|---|---|---|
+| Baseline (always not lapsed) | – | – | 0 | 0 | 0 (accuracy `<fill>`) |
+| Logistic regression | `<fill>` | `<fill>` | `<fill>` | `<fill>` | `<fill>` |
+| Random forest | `<fill>` | `<fill>` | `<fill>` | `<fill>` | `<fill>` |
+
+**Model choice.** `<Selected model>` is used. Missing a customer who is about to lapse means losing all their future orders, while wrongly sending an offer to a loyal customer costs only a small discount. Recall on the lapsed class therefore matters more than precision here, and a model with a test F1 of `<fill>` (above the 0.55 requirement) that catches `<fill>` of lapsing customers is the better trade.
+
+**Class-balance experiment.** Over-sampling the lapsed rows of the training set only (duplicates drawn with replacement, `random_state=42`, `<fill>` rows per class) moved recall from `<fill>` to `<fill>` while precision went from `<fill>` to `<fill>`. Recall moved most, so the retention team reaches more of the customers who would leave, at the price of contacting more customers who would have stayed.
+
+**What drives lapsing.** Top five random forest features: `<fill>`. Logistic regression signs: recency `<+/->` (the longer since the last order, the likelier the lapse), frequency `<+/->` (`<reading>`), cancellation rate `<+/->` (`<reading>`).
+
+**Saved model.** `outputs/lapse_model.joblib` is reloaded in the script and gives identical test predictions.
+
+### Limitations and next steps
+
+- **The retention list is illustrative.** The Premium flag comes from whole-window RFM, which includes the September window that defines the lapse label, so it is a post-hoc label and `outputs/retention_list.csv` is not a leakage-free evaluation. The model's own features still use only orders before the cutoff.
+- The model is trained on one cutoff and one month of outcomes, so it may not hold up if buying patterns change. Next step: repeat for several cutoffs and check the results are stable.
+- Over-sampling by duplication can make the model overconfident; class weights or a different decision threshold are worth comparing.
+
