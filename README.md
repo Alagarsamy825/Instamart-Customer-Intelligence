@@ -93,8 +93,6 @@ The supplied teaching implementation describes these refund rules: completed ord
 
 **Expected evaluation outputs:** `outputs/policy_eval_overlap0.csv` and `outputs/policy_eval_overlap10.csv`.
 
-**Refund-agent outputs, when supported by the included implementation:** `outputs/agent_runs.jsonl`, `outputs/refund_ledger.jsonl`, and checkpoint files under `state/`.
-
 ## Limitations and Next Steps
 
 - This is an educational project, not a production customer-support or payment system.
