@@ -16,8 +16,8 @@ import json
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
-if not (ROOT / "src" / "part_d.py").exists():
-    raise FileNotFoundError("Expected src/part_d.py beside this script's project folder.")
+if not (ROOT / "src" / "refund_agent.py").exists():
+    raise FileNotFoundError("Expected src/refund_agent.py beside this script's project folder.")
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 

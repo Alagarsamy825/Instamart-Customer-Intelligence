@@ -459,17 +459,14 @@ def _find_column(dataframe, possible_names, required=True):
 
 def evaluate_policy_retrieval(overlap=10):
     """
-    Evaluate retrieval and grounded answers using policy_eval.csv.
+    Evaluate policy retrieval using policy_eval.csv.
 
-    Expected evaluation fields include:
-        question, answerable, expected_source, expected_fact
+    Expected CSV columns:
+        question, expected_doc, expected_fact
 
-    Some alternative column names are also supported.
-
-    Saves detailed results to:
-        outputs/policy_eval_overlap10.csv
-        outputs/policy_eval_overlap0.csv
+    A question is answerable when expected_doc != "NONE".
     """
+
     evaluation_path = DATA_DIR / "policy_eval.csv"
 
     if not evaluation_path.exists():
@@ -479,116 +476,96 @@ def evaluate_policy_retrieval(overlap=10):
 
     evaluation_df = pd.read_csv(evaluation_path)
 
-    question_column = _find_column(
-        evaluation_df,
-        ["question", "query", "user_question"],
-    )
+    required_columns = {
+        "question",
+        "expected_doc",
+        "expected_fact",
+    }
 
-    answerable_column = _find_column(
-        evaluation_df,
-        ["answerable", "is_answerable", "has_answer"],
-    )
+    missing_columns = required_columns - set(evaluation_df.columns)
 
-    expected_source_column = _find_column(
-        evaluation_df,
-        ["expected_source", "source", "expected_document"],
-        required=False,
-    )
+    if missing_columns:
+        raise ValueError(
+            f"Missing columns in policy_eval.csv: {missing_columns}. "
+            f"Available columns: {list(evaluation_df.columns)}"
+        )
 
-    expected_fact_column = _find_column(
-        evaluation_df,
-        ["expected_fact", "expected_answer", "answer", "ground_truth"],
-        required=False,
-    )
-
-    # Rebuild the index for the requested overlap.
+    # Rebuild the index for the requested chunk overlap.
     build_index(overlap=overlap)
 
     results = []
 
+    def normalise(value):
+        """Normalise filenames and text for comparison."""
+        return re.sub(r"[^a-z0-9]", "", str(value).lower())
+
     for _, row in evaluation_df.iterrows():
-        question = str(row[question_column]).strip()
-
-        raw_answerable = row[answerable_column]
-
-        if isinstance(raw_answerable, bool):
-            is_answerable = raw_answerable
-        else:
-            is_answerable = str(raw_answerable).strip().lower() in {
-                "true", "1", "yes", "y"
-            }
-
-        expected_source = (
-            str(row[expected_source_column]).strip()
-            if expected_source_column is not None
-            and pd.notna(row[expected_source_column])
-            else ""
-        )
-
+        question = str(row["question"]).strip()
+        expected_doc = str(row["expected_doc"]).strip()
         expected_fact = (
-            str(row[expected_fact_column]).strip()
-            if expected_fact_column is not None
-            and pd.notna(row[expected_fact_column])
-            else ""
+            ""
+            if pd.isna(row["expected_fact"])
+            else str(row["expected_fact"]).strip()
         )
 
+        # Derive answerability from expected_doc.
+        is_answerable = (
+            expected_doc.upper() != "NONE"
+            and expected_doc.strip() != ""
+        )
+
+        # Retrieve the top 3 relevant chunks.
         retrieved = retrieve(question, k=3)
 
         retrieved_sources = [
             chunk["source"] for chunk in retrieved
         ]
 
-        # Compare source names without being sensitive to punctuation
-        # or common filename extensions.
-        def normalise_name(value):
-            return re.sub(
-                r"[^a-z0-9]",
-                "",
-                str(value).lower().rsplit(".", 1)[0],
-            )
+        # Compare expected document names with retrieved source names.
+        expected_source_name = normalise(expected_doc)
 
-        source_hit = (
-            not expected_source
-            or any(
-                normalise_name(expected_source)
-                in normalise_name(source)
-                or normalise_name(source)
-                in normalise_name(expected_source)
+        retrieval_hit = (
+            is_answerable
+            and any(
+                expected_source_name in normalise(source)
+                or normalise(source) in expected_source_name
                 for source in retrieved_sources
             )
         )
 
-        # Evaluate the answer using the same grounded-answer function.
-        answer_result = answer(question)
-        answer_text = answer_result["answer"]
+        # Generate the grounded answer.
+        result = answer(question)
+        answer_text = result["answer"]
 
         fallback_used = answer_text.lower().startswith(
             "i could not find"
         )
 
+        # Check whether the expected fact appears in the answer.
         expected_fact_hit = (
-            bool(expected_fact)
-            and expected_fact.lower() in answer_text.lower()
+            is_answerable
+            and bool(expected_fact)
+            and normalise(expected_fact) in normalise(answer_text)
         )
 
         results.append({
             "question": question,
-            "answerable": is_answerable,
-            "expected_source": expected_source,
-            "retrieved_sources": ", ".join(retrieved_sources),
-            "retrieval_hit": bool(source_hit) if is_answerable else False,
+            "expected_doc": expected_doc,
             "expected_fact": expected_fact,
+            "answerable": is_answerable,
+            "retrieved_sources": ", ".join(retrieved_sources),
+            "retrieval_hit": bool(retrieval_hit),
             "answer": answer_text,
             "expected_fact_hit": bool(expected_fact_hit),
             "fallback_used": fallback_used,
-            "tokens_used": answer_result["tokens_used"],
+            "tokens_used": result["tokens_used"],
             "chunk_overlap": overlap,
         })
 
     results_df = pd.DataFrame(results)
 
-    answerable_df = results_df[results_df["answerable"] == True]
-    unanswerable_df = results_df[results_df["answerable"] == False]
+    answerable_df = results_df[results_df["answerable"]]
+    unanswerable_df = results_df[~results_df["answerable"]]
 
     answerable_count = len(answerable_df)
     unanswerable_count = len(unanswerable_df)
@@ -599,7 +576,10 @@ def evaluate_policy_retrieval(overlap=10):
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    output_path = OUTPUT_DIR / f"policy_eval_overlap{overlap}.csv"
+    output_path = (
+        OUTPUT_DIR / f"policy_eval_overlap{overlap}.csv"
+    )
+
     results_df.to_csv(output_path, index=False)
 
     metrics = {
@@ -624,11 +604,13 @@ def evaluate_policy_retrieval(overlap=10):
         "output_path": str(output_path),
     }
 
-    print(f"\nEvaluation completed for overlap={overlap}")
+    print(f"\nEvaluation completed: overlap={overlap}")
+    print(f"Answerable questions: {answerable_count}")
+    print(f"Unanswerable questions: {unanswerable_count}")
     print(f"Retrieval hits: {retrieval_hits}/{answerable_count}")
     print(f"Expected fact hits: {fact_hits}/{answerable_count}")
     print(f"Unanswerable fallbacks: {fallback_count}/{unanswerable_count}")
-    print(f"Detailed results saved to: {output_path}")
+    print(f"Saved to: {output_path}")
 
     return metrics
 
