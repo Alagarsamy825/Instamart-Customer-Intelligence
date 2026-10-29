@@ -1,61 +1,106 @@
-Instamart Customer Intelligence
+# Instamart Customer Intelligence
 
-This project analyzes Instamart customer and order data in fout parts.
+> An educational implementation of a fictional Instamart-style customer intelligence and support workflow. Use the supplied project data and assignment brief as the source of truth for validation. Do not add real customer data or secrets to the repository.
 
-What each part does
+## Overview
 
-Part A — Data Foundation
-Part A prepares the raw data so it can be used reliably.
+This project analyzes customer, product, order, and support-ticket data across four parts:
 
-* Audits the original customer, product, and order CSV files.
-* Cleans inconsistent values, duplicate orders, missing values, and invalid data.
-* Saves cleaned CSV files in data/clean/.
-* Stores the cleaned tables in data/instamart.db (SQLite).
-* Runs SQL queries and pandas analysis to answer business questions.
+- **Part A — Data Foundation:** audit and clean raw CSV files, persist cleaned data, and run SQL and pandas analysis.
+- **Part B — Customer Segments and Lapse Prediction:** calculate RFM metrics, group customers with K-means, train a lapse prediction model, and create a retention list.
+- **Part C — Support Ticket Triage:** validate tickets, redact personally identifiable information (PII), classify tickets, handle transient errors, and route tickets to the appropriate team or human review.
+- **Part D — Policy RAG and Refund Agent:** retrieve relevant policy passages, generate grounded answers, evaluate retrieval, and exercise bounded refund-agent tools where the implementation is available.
 
-Main outputs: cleaned CSV files and `data/instamart.db`.
+## Reproduce
 
-Part B — Customer Segments and Lapse Prediction
-Part B uses the cleaned data from Part A to understand customer behaviour.
+Python 3.11 or later is recommended.
 
-* Calculates RFM values: Recency, Frequency, and Monetary value.
-* Groups customers into segments using K-means clustering.
-* Builds a model to predict which customers may stop ordering.
-* Creates a retention list to help the business decide which customers to contact.
-
-Main outputs: `outputs/customer_segments.csv`, `outputs/lapse_model.joblib`, and `outputs/retention_list.csv`.
-
-Part C — Support Ticket Triage
-Part C classifies customer support tickets and decides where each ticket should go.
-
-* Checks tickets before sending them to the model.
-* Redacts email addresses, phone numbers, and order IDs.
-* Compares zero-shot and few-shot prompts.
-* Retries temporary model errors and validates model responses.
-* Applies a token budget and sends tickets to the appropriate team or human review.
-
-Main output: the final ticket-triage CSV in outputs/ (the exact filename is set by the Part C script).
-
-Part D — Policy RAG and Refund Agent
-Part D uses policy documents and a tool-based agent to answer customer questions and handle refund requests safely.
-
-* Splits policy documents into chunks and builds a TF-IDF index for information retrieval.
-* Retrieves relevant policy content using cosine similarity.
-* Generates grounded policy answers using the retrieved context and the mock LLM.
-* Evaluates retrieval accuracy and expected-fact matching with chunk overlap values of 10 and 0.
-* Defines refund-agent tools for order lookup, policy search, refund calculation, refund issuance, and human escalation.
-* Tests seven refund scenarios and demonstrates safety controls, including token limits, timeouts, and checkpoint-based recovery.
-
-Main outputs: `outputs/policy_eval_overlap10.csv`, `outputs/policy_eval_overlap0.csv`, and, when the refund-agent implementation is available, `outputs/agent_runs.jsonl`, `outputs/refund_ledger.jsonl`, and checkpoint files under `state/`.
-
-How to run this application steps:
-
-git clone <your-repository-url>
+git clone <your-public-repository-url>
 cd Instamart-Customer-Intelligence
 
 python3 -m venv .venv
+
+# macOS/Linux
 source .venv/bin/activate
 
+# Windows PowerShell
+# .venv\\Scripts\\Activate.ps1
+
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 
+# Generate synthetic input data only if it is not already supplied
+python generate_data.py
+
+# Run the project entry point
 python run_project.py
+
+
+Run commands from the repository root. If a stage fails, read the error printed in the terminal before continuing. Review the generated artifacts in `outputs/` and the cleaned data in `data/clean/`. Do not commit the virtual environment.
+
+## Part A — Data Foundation
+
+Part A prepares raw customer, product, and order data for analysis.
+
+- Audits the source CSV files for data quality issues.
+- Cleans inconsistent values, duplicate orders, missing values, and invalid data according to the implemented rules.
+- Writes cleaned CSV files to `data/clean/`.
+- Stores cleaned tables in the SQLite database `data/instamart.db`.
+- Runs SQL queries and pandas analysis to answer business questions.
+
+**Main outputs:** cleaned CSV files under `data/clean/` and `data/instamart.db`.
+
+The SQL queries are maintained in `sql/queries.sql`. Use the assignment brief and the actual run outputs to validate the reported counts and statistics; do not hardcode expected values to force a match.
+
+## Part B — Customer Segments and Lapse Prediction
+
+Part B uses the cleaned data from Part A to analyze customer behaviour.
+
+- Calculates RFM metrics: Recency, Frequency, and Monetary value.
+- Groups customers using K-means clustering.
+- Trains a model to predict which customers may stop ordering.
+- Produces a retention list to support customer outreach decisions.
+
+The lapse model should use the time-based feature and label definitions specified in the project implementation and assignment brief. Treat the retention list as a decision-support artifact, not a guarantee that a customer will lapse.
+
+**Main outputs:** `outputs/customer_segments.csv`, `outputs/lapse_model.joblib`, and `outputs/retention_list.csv`.
+
+## Part C — Support Ticket Triage
+
+Part C classifies support tickets and routes them to the appropriate destination.
+
+- Validates tickets before processing.
+- Redacts email addresses, phone numbers, and order IDs before model prompting.
+- Compares zero-shot and few-shot prompting.
+- Retries temporary model errors and validates model responses.
+- Applies token-budget and output guardrails.
+- Routes tickets to the appropriate support team or human review.
+
+**Main output:** the ticket-triage CSV generated in `outputs/`. Check the Part C source code for the exact filename used by this repository.
+
+## Part D — Policy RAG and Refund Agent
+
+Part D retrieves policy information and demonstrates a bounded refund-agent workflow.
+
+- Splits policy documents into chunks, including the configured overlap.
+- Uses TF-IDF representations and cosine similarity to rank relevant policy passages.
+- Generates answers grounded in retrieved policy context using the project's configured model implementation.
+- Evaluates retrieval with the overlap settings used by the Part D scripts.
+- Provides refund-agent tools for order lookup, policy search, refund calculation, refund issuance, and escalation where implemented.
+- Uses local persistence and audit artifacts for the simulated agent workflow.
+
+The supplied teaching implementation describes these refund rules: completed orders delivered in over **45 minutes** qualify for a full refund, while orders over **INR 1000** are escalated instead of being automatically refunded. Confirm these rules against the actual Part D source before treating them as the final acceptance criteria.
+
+**Expected evaluation outputs:** `outputs/policy_eval_overlap0.csv` and `outputs/policy_eval_overlap10.csv`.
+
+**Refund-agent outputs, when supported by the included implementation:** `outputs/agent_runs.jsonl`, `outputs/refund_ledger.jsonl`, and checkpoint files under `state/`.
+
+## Limitations and Next Steps
+
+- This is an educational project, not a production customer-support or payment system.
+- Use synthetic or appropriately anonymized data only. Do not commit credentials, API keys, or personal customer information.
+- The configured mock model may be a deterministic, rule-based simulation rather than a hosted language model. Confirm the implementation in `mock_llm.py`.
+- The refund ledger and refund tools are a local simulation; they do not move money or integrate with a payment provider.
+- Verify that every required Part A–D source file and every artifact listed in the assignment's **Required Repository Contents** is committed.
+- Compare actual outputs with the assignment's numeric checkpoints and report the measured results. Do not invent or hardcode metrics that have not been produced by a successful run.
+- For production use, add appropriate access controls, secure secret management, monitoring, schema validation, data lineage, model-drift checks, and human approval workflows.
