@@ -1,7 +1,6 @@
 
 """
 Part D — Policy RAG Assistant
-Tasks 1–4:
 1. Chunk policy documents
 2. Build TF-IDF index and retrieve relevant chunks
 3. Generate grounded policy answers using mock_llm

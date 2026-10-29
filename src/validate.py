@@ -1,8 +1,4 @@
-"""Check the clean data against the reference checkpoints from the brief.
-
-Run after clean_data.py:
-    python validate.py
-"""
+"""Check the clean data against the reference checkpoints from the brief."""
 
 import sqlite3
 from pathlib import Path

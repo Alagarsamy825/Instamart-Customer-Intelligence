@@ -1,7 +1,4 @@
-"""pandas cross-check of the SQL results plus exploratory statistics.
-
-    python explore.py
-"""
+"""pandas cross-check of the SQL results plus exploratory statistics."""
 
 from pathlib import Path
 

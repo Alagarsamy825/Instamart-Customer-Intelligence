@@ -1,8 +1,8 @@
 import sqlite3
-from pathlib import Path
- 
 import numpy as np
 import pandas as pd
+
+from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
@@ -13,19 +13,24 @@ DB_PATH = ROOT / "data" / "instamart.db"
 TS_FORMAT = "%Y-%m-%d %H:%M:%S"
 GENDER_MAP = {"male": "male", "m": "male", "female": "female", "f": "female"}
 
+ORDER_CSV = "orders.csv"
+CUSTOMERS_CSV = "customers.csv"
+TICKETS_CSV = "tickets.csv"
+PRODUCTS_CSV = "products.csv"
+
 # Loading the raw CSV files into pandas DataFrames
 def load_raw():
     """Read the four raw CSVs. Tickets keep empty texts as empty strings."""
     return {
-        "orders": pd.read_csv(RAW_DIR / "orders.csv"),
-        "customers": pd.read_csv(RAW_DIR / "customers.csv"),
-        "tickets": pd.read_csv(RAW_DIR / "tickets.csv", keep_default_na=False),
-        "products": pd.read_csv(RAW_DIR / "products.csv"),
+        "orders": pd.read_csv(RAW_DIR / ORDER_CSV),
+        "customers": pd.read_csv(RAW_DIR / CUSTOMERS_CSV),
+        "tickets": pd.read_csv(RAW_DIR / TICKETS_CSV, keep_default_na=False),
+        "products": pd.read_csv(RAW_DIR / PRODUCTS_CSV),
     }
 
 # Audit and clean the data
 def profile_table(name, df):
-    """Print shape, dtypes and missing values (count and %) for every column."""
+   # Print shape, dtypes and missing values count and percentage for every column.
     print(f"\n{'=' * 50}\nTABLE: {name}\n{'=' * 50}")
     print("Shape:", df.shape)
  
@@ -81,9 +86,7 @@ def clean_customers(raw):
     df["city"] = df["city"].str.strip().str.title()
  
     # (b) One spelling per gender; blanks and anything unexpected become unknown.
-    df["gender"] = (
-        df["gender"].str.strip().str.lower().map(GENDER_MAP).fillna("unknown")
-    )
+    df["gender"] = (df["gender"].str.strip().str.lower().map(GENDER_MAP).fillna("unknown"))
  
     # (c) Ages outside 10-100 are treated as missing, then every missing age
     #     gets the median age of that customer's city.
